@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/uio.h>
+#include <sys/sendfile.h>
 
 // TODOS:
 // - add request queue
@@ -70,7 +71,12 @@ int main() {
             exit(EXIT_FAILURE);
         }
 
-        if (sendfile(opened_fd, client_socket_fd, 0, (off_t *) &req_buffer_size, NULL, 0)) {
+        // if (sendfile(opened_fd, client_socket_fd, 0, (off_t *) &req_buffer_size, NULL, 0)) {
+        //     perror("Error sending file");
+        //     exit(EXIT_FAILURE);
+        // }
+
+        if (sendfile(client_socket_fd, opened_fd, 0, req_buffer_size) == -1) {
             perror("Error sending file");
             exit(EXIT_FAILURE);
         }
