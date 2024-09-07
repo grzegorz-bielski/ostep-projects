@@ -2,7 +2,8 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/cpp
 {
 	"name": "cpp",
-	"image": "mcr.microsoft.com/devcontainers/cpp"
+	"image": "mcr.microsoft.com/devcontainers/cpp",
+	"postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}"
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
