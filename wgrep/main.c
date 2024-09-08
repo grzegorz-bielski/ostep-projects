@@ -1,43 +1,72 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-// #define MAX_LINE_LENGTH 1000
+int isEmptyString(const char *str) {
+    return str[0] == '\0';
+}
 
-// void printFile(char *fileName) {
-//     FILE *file = fopen(fileName, "r");
-//     if (file == NULL) {
-//         printf("wcat: cannot open file\n");
-//         exit(1);
-//     }
+void searchStream(FILE *file, char *searchTerm) {
+    char *currentLine = NULL;
+    size_t currentLineLength = 0;
+    size_t charsReadOrError;
+    
+    // getLine handles arbitrary length lines
+    while ((charsReadOrError = getline(&currentLine, &currentLineLength, file) != -1)) {
+        if (strstr(currentLine, searchTerm) != NULL) {
+            printf("%s", currentLine);
+        }
+    }
 
-//     char lineBuffer[MAX_LINE_LENGTH];
+    // always free the memory allocated by getline
+    free(currentLine);
 
-//     // fgets() reads a line from the file and stores it in lineBuffer
-//     // fgets() returns NULL when it reaches the end of the file or encounters an error
-//     // fgets() reads at most 999 characters from the file in a single call
-//     // if line is longer than 999 characters, fgets() reads the first 999 characters and appends a null character at the end
-//     while (fgets(lineBuffer, MAX_LINE_LENGTH, file) != NULL) {
-//         printf("%s", lineBuffer);
-//     }
+    // getline returns -1 when it reaches the end of the file or encounters an error
+    if (charsReadOrError == -1 && !feof(file)) {
+        perror("wgrep: cannot read file\n");
+        exit(1);
+    }
 
-//     if (fclose(file)) {
-//         perror("wcat: cannot close file\n");
-//         exit(1);
-//     }
-// }
+    if (fclose(file)) {
+        perror("wgrep: cannot close file\n");
+        exit(1);
+    }
+}
 
-// TODO: https://github.com/remzi-arpacidusseau/ostep-projects/tree/master/initial-utilities#wgrep
+void searchFile(char *fileName, char *searchTerm) {
+    FILE *file = fopen(fileName, "r");
+    if (file == NULL) {
+        printf("wgrep: cannot open file\n");
+        exit(1);
+    }
+
+    searchStream(file, searchTerm);
+}
+
+void searchStdin(char *searchTerm) {
+    // stdin is a FILE pointer that is already open
+    searchStream(stdin, searchTerm);
+}
 
 int main(int argc, char *argv[]) {
     if (argc <= 1) {
-        // below info is not allowed by test suite
-        // printf("wcat: file1 file2 ...\n");
+        printf("wgrep: searchterm [file ...]\n");
+        exit(1);
+    }
+
+    char *searchTerm = argv[1];
+
+    if (isEmptyString(searchTerm)) {
         exit(0);
     }
 
-    for (int i = 1; i < argc; i++) {
-        char *fileName = argv[i];
-        printFile(fileName);
+    if (argc == 2) {
+        searchStdin(searchTerm);
+    } else {
+        for (int i = 2; i < argc; i++) {
+            char *fileName = argv[i];
+            searchFile(fileName, searchTerm);
+        }
     }
 
     return 0;
