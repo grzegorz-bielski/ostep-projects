@@ -7,96 +7,81 @@
 #include <stdlib.h>
 #include <string.h>
 
-// TODO: https://github.com/remzi-arpacidusseau/ostep-projects/tree/master/initial-utilities#wzip-and-wunzip
-
-#define MAX_OUT_BUFFER_SIZE 100
-// struct
+#define MAX_OUT_BUFFER_SIZE 64 * 1024
 
 typedef struct {
     int count;
     char character;
 } EncodedData;
 
-// TODO: write to stdout
-void writeToStream(EncodedData outBuffer[MAX_OUT_BUFFER_SIZE], size_t latestOutBufferIndex) {
-    // printf("writeToStream: %ld\n", latestOutBufferIndex);
-    // printf("Size of int: %zu bytes\n", sizeof(int)); // 4 bytes
-
-
-    for (size_t i = 0; i <= latestOutBufferIndex; i++) {
+void writeToStream(EncodedData outBuffer[], size_t *outBufferIndex) {
+    for (size_t i = 0; i <= (*outBufferIndex); i++) {
         EncodedData current = outBuffer[i];
-        // fprintf(stdout, "%d%c", current.count, current.character);
 
-         fwrite(&current.count, sizeof(int), 1, stdout);
-         fwrite(&current.character, sizeof(char), 1, stdout);
+        fwrite(&current.count, sizeof(int), 1, stdout);
+        fwrite(&current.character, sizeof(char), 1, stdout);
     }
-
-    // fflush(stdout);
 }
 
-int main(int argc, char *argv[]) {
-    if (argc <= 1) {
-        printf("wzip: file\n");
-        exit(1);
-    }
-
-    char *fileName = argv[1];
-    FILE *file = fopen(fileName, "r");
+void compressFile(char *fileName, EncodedData outBuffer[], size_t *outBufferIndex) {
+     FILE *file = fopen(fileName, "r");
     if (file == NULL) {
         printf("wgrep: cannot open file\n");
         exit(1);
     }
 
-    char inBuffer[10]; // TODO: increase buffer size
+    char inBuffer[128]; // arbitrary buffer size
     size_t itemsToRead = sizeof(inBuffer) / sizeof((inBuffer)[0]);
     size_t itemSize = sizeof((inBuffer)[0]);
     size_t chunksRead = 0;
 
-    EncodedData outBuffer[MAX_OUT_BUFFER_SIZE];
-    size_t latestOutBufferIndex = -1;
-
     while((chunksRead = fread(inBuffer, itemSize, itemsToRead, file)) != 0) {
         for (size_t i = 0; i < chunksRead; i++) {
             char currentChar = inBuffer[i];
-            // initial character
-            if (latestOutBufferIndex == -1) {
+
+            if (
+                // initial character
+                ((*outBufferIndex) == -1) || 
+                // character changed
+                (outBuffer[*outBufferIndex].character != currentChar)
+            ) {
                 EncodedData data = { .count = 1, .character = currentChar };
-                outBuffer[++latestOutBufferIndex] = data;
-            } 
-            // same character
-            else if (outBuffer[latestOutBufferIndex].character == currentChar) {
-                outBuffer[latestOutBufferIndex].count++;
-            } 
-            // character changed
-            else {
-                // write to outBuffer
-                EncodedData data = {.count = 1, .character = currentChar };
-                outBuffer[++latestOutBufferIndex] = data;
+                outBuffer[++(*outBufferIndex)] = data;
+            } else if (outBuffer[*outBufferIndex].character == currentChar) {
+                outBuffer[*outBufferIndex].count++;
+            }
 
-                // check if it's full and write to file
-                if (latestOutBufferIndex >= (MAX_OUT_BUFFER_SIZE - 1)) {
-                    writeToStream(outBuffer, latestOutBufferIndex);
+            // escape hatch: flush outBuffer if it's full
+            if ((*outBufferIndex) >= (MAX_OUT_BUFFER_SIZE - 1)) {
+                writeToStream(outBuffer, outBufferIndex);
 
-                    // reset outBuffer
-                    latestOutBufferIndex = 0;
-                    memset(outBuffer, 0, sizeof(outBuffer));
-                }
+                // reset outBuffer
+                *outBufferIndex = -1;
+                memset(outBuffer, 0, sizeof(EncodedData) * MAX_OUT_BUFFER_SIZE);
             }
         }
     }
-
-    // // print outBuffer values in a loop
-    // for (size_t i = 0; i <= latestOutBufferIndex; i++) {
-    //     EncodedData current = outBuffer[i];
-    //     printf("%d%c\n", current.count, current.character);
-    // }
-
-    writeToStream(outBuffer, latestOutBufferIndex);
 
     if (fclose(file)) {
         perror("wgrep: cannot close file\n");
         exit(1);
     }
+}
+
+int main(int argc, char *argv[]) {
+    if (argc <= 1) {
+        printf("wzip: file1 [file2 ...]\n");
+        exit(1);
+    }
+
+    EncodedData outBuffer[MAX_OUT_BUFFER_SIZE];
+    size_t outBufferIndex = -1;
+
+    for (int i = 1; i < argc; i++) {
+        compressFile(argv[i], outBuffer, &outBufferIndex);
+    }
+
+    writeToStream(outBuffer, &outBufferIndex);
 
     return 0;
 }
