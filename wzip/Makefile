@@ -1,5 +1,5 @@
 SRCS = main.c
-TARG = wgrep
+TARG = wzip
 CC = gcc
 OPTS = -Wall -Werror -O
 LIBS = -lm
