@@ -1,22 +1,30 @@
-// run-length encoding (RLE):
+// run-length encoding compression alg (RLE):
 // n chars (run length) of the same type in a row -> nChar: aaaaaaaaaabbbb -> 10a4b
-
 // compressed data format: 4 byte int in binary + 1 ACII char
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_OUT_BUFFER_SIZE 64 * 1024
+// for passing 6th test on a single buffer
+// #define MAX_OUT_BUFFER_SIZE 512 * 2024
+
+// min size for streaming like functionality: 
+// keeps current and the previous values only
+// could be increased for better I/O performance
+#define MAX_OUT_BUFFER_SIZE 2
 
 typedef struct {
     int count;
     char character;
 } EncodedData;
 
-void writeToStream(EncodedData outBuffer[], size_t *outBufferIndex) {
-    for (size_t i = 0; i <= (*outBufferIndex); i++) {
+void writeToStream(EncodedData outBuffer[], size_t outBufferIndex) {
+    for (size_t i = 0; i <= outBufferIndex; i++) {
         EncodedData current = outBuffer[i];
+
+        // could use `arpa/inet.h` / `htonl` to convert to network byte order for consistency, 
+        // but it breaks the test cases
 
         fwrite(&current.count, sizeof(int), 1, stdout);
         fwrite(&current.character, sizeof(char), 1, stdout);
@@ -45,19 +53,23 @@ void compressFile(char *fileName, EncodedData outBuffer[], size_t *outBufferInde
                 // character changed
                 (outBuffer[*outBufferIndex].character != currentChar)
             ) {
+                // check if buffer will become full with next character and write it to the stream if so
+                if ((*outBufferIndex + 1) >= (MAX_OUT_BUFFER_SIZE - 1)) {
+                    writeToStream(outBuffer, *outBufferIndex);
+
+                    // reset outBuffer
+                    memset(outBuffer, 0, sizeof(EncodedData) * MAX_OUT_BUFFER_SIZE);
+                    *outBufferIndex = -1;
+                }
+
+                // add new character to the buffer
                 EncodedData data = { .count = 1, .character = currentChar };
                 outBuffer[++(*outBufferIndex)] = data;
-            } else if (outBuffer[*outBufferIndex].character == currentChar) {
+
+            } 
+            // same character
+            else if (outBuffer[*outBufferIndex].character == currentChar) {
                 outBuffer[*outBufferIndex].count++;
-            }
-
-            // escape hatch: flush outBuffer if it's full
-            if ((*outBufferIndex) >= (MAX_OUT_BUFFER_SIZE - 1)) {
-                writeToStream(outBuffer, outBufferIndex);
-
-                // reset outBuffer
-                *outBufferIndex = -1;
-                memset(outBuffer, 0, sizeof(EncodedData) * MAX_OUT_BUFFER_SIZE);
             }
         }
     }
@@ -81,7 +93,7 @@ int main(int argc, char *argv[]) {
         compressFile(argv[i], outBuffer, &outBufferIndex);
     }
 
-    writeToStream(outBuffer, &outBufferIndex);
+    writeToStream(outBuffer, outBufferIndex);
 
     return 0;
 }

@@ -25,6 +25,7 @@
         "stdexcept": "c",
         "string": "c",
         "system_error": "c",
-        "typeinfo": "c"
+        "typeinfo": "c",
+        "inet.h": "c"
     }
 }
