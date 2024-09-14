@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 // for passing 6th test on a single buffer
 // #define MAX_OUT_BUFFER_SIZE 512 * 2024
@@ -15,7 +16,7 @@
 #define MAX_OUT_BUFFER_SIZE 2
 
 typedef struct {
-    int count;
+    uint32_t count;
     char character;
 } EncodedData;
 
@@ -24,9 +25,9 @@ void writeToStream(EncodedData outBuffer[], size_t outBufferIndex) {
         EncodedData current = outBuffer[i];
 
         // could use `arpa/inet.h` / `htonl` to convert to network byte order for consistency, 
-        // but it breaks the test cases
+        // but it breaks test cases :shrug:
 
-        fwrite(&current.count, sizeof(int), 1, stdout);
+        fwrite(&current.count, sizeof(uint32_t), 1, stdout);
         fwrite(&current.character, sizeof(char), 1, stdout);
     }
 }
@@ -34,7 +35,7 @@ void writeToStream(EncodedData outBuffer[], size_t outBufferIndex) {
 void compressFile(char *fileName, EncodedData outBuffer[], size_t *outBufferIndex) {
      FILE *file = fopen(fileName, "r");
     if (file == NULL) {
-        printf("wgrep: cannot open file\n");
+        printf("wzip: cannot open file\n");
         exit(1);
     }
 
@@ -75,7 +76,7 @@ void compressFile(char *fileName, EncodedData outBuffer[], size_t *outBufferInde
     }
 
     if (fclose(file)) {
-        perror("wgrep: cannot close file\n");
+        perror("wzip: cannot close file\n");
         exit(1);
     }
 }
