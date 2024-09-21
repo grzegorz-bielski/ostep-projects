@@ -26,6 +26,7 @@
         "string": "c",
         "system_error": "c",
         "typeinfo": "c",
-        "inet.h": "c"
+        "inet.h": "c",
+        "unistd.h": "c"
     }
 }
