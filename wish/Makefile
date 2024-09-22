@@ -14,7 +14,7 @@ $(TARG): $(OBJS)
 clean:
 	rm -f $(OBJS) $(TARG)
 
-TEST_FOLDER_PATH = ../test-suite/initial-utilities/$(TARG)
+TEST_FOLDER_PATH = ../test-suite/processes-shell
 
 test-copy: all
 	cp $(TARG) $(TEST_FOLDER_PATH)/$(TARG)

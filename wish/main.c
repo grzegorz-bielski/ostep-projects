@@ -23,11 +23,12 @@
 _Atomic bool atomic_exitting = false;
 
 // TODO: `path` cannot be atomic, use locks to update both `path` and `pathSize`
-size_t pathSize = 2;
 char *path[MAX_PATH_SIZE] = { 
     "/bin", 
     // "/usr/bin" 
     };
+size_t pathSize = 1;
+
 
 void printError() {
     char error_message[30] = "An error has occurred\n";
@@ -91,13 +92,17 @@ void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) {
         // open("./p4.output", O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
 
         char *execArgs[cmdArgsSize + 1];
-        execArgs[0] = cmdPath;
+        // command name without path, specifying path is not supported
+        execArgs[0] = cmdArgs[0];
         for (size_t i = 1; i < cmdArgsSize; i++) {
             execArgs[i] = cmdArgs[i];
         }
         execArgs[cmdArgsSize] = NULL;
 
-        execv(execArgs[0], execArgs);
+        if (execv(cmdPath, execArgs)) {
+            printError();
+        }
+
     } else {
         // parent: wait for the child to finish
         if (waitpid(rc, NULL, 0) == -1) {
@@ -182,14 +187,17 @@ void removeNewline(char *str) {
     }
 }
 
-void runInteractiveShell() {
+void runShellFrom(FILE *stream, bool printPrompt) {
     // includes the newline character
     char *line = NULL;
     size_t lineLength = 0;
 
     while (!atomic_exitting) {
-        printf("wish> ");
-        if (getline(&line, &lineLength, stdin) == -1) {
+        if (printPrompt) {
+            printf("wish> ");
+        }
+
+        if (getline(&line, &lineLength, stream) == -1) {
             break;
         }
 
@@ -201,20 +209,20 @@ void runInteractiveShell() {
 }
 
 int main(int argc, char *argv[]) {
-    // char *path = "/bin:/usr/bin";
-
     if (argc > 2) {
         exit(1);
     } else if (argc == 2) {
-        // char *batchFile  = argv[1];
-        // read from bath file
-        printf("wish: not implemented\n");
-        exit(1);
+        // batch mode
+        FILE *batchFile = fopen(argv[1], "r");
+        if (batchFile == NULL) {
+            printError();
+            exit(1);
+        }
+
+        runShellFrom(batchFile, false);
     } else {
         // interactive mode
-        // printf("wish: not implemented\n");
-        // exit(1); 
-        runInteractiveShell();
+        runShellFrom(stdin, true);
     }
 
     return 0;
