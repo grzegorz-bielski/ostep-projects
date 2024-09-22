@@ -2,7 +2,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
 // #include <stdint.h>
+#include <stdbool.h>
 
 // https://github.com/remzi-arpacidusseau/ostep-projects/tree/master/processes-shell
 
@@ -17,18 +21,84 @@
 
 // globals, atomic just in case
 _Atomic int atomic_exitting = 0;
-// TODO: cannot be atomic, use locks
-char *atomic_path[MAX_PATH_SIZE] = {"/bin", "/usr/bin"};
+
+// TODO: `atomic_path` cannot be atomic, use locks to update both
+size_t pathSize = 2;
+char *path[MAX_PATH_SIZE] = { "/bin", "/usr/bin" };
 
 void printError() {
     char error_message[30] = "An error has occurred\n";
     write(STDERR_FILENO, error_message, strlen(error_message));
 }
 
-void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) { 
+char *getCommandPath(char *cmd) {
+    size_t cmdSize = strlen(cmd);
+    char *cmdPath = NULL;
+    
+    for (size_t i = 0; i < pathSize; i++) {
+        // copy the old path element
+        char oldPathElem[strlen(path[i]) + 1];  // +1 for null terminator
+        strcpy(oldPathElem, path[i]);
 
+        // create the a temp path element with cmd
+        size_t cmdPathSize = strlen(oldPathElem) + cmdSize + 2;   // +1 for null terminator, +1 for '/'
+        cmdPath = (char *)malloc(cmdPathSize);
+        strcpy(cmdPath, oldPathElem);
+        strcat(cmdPath, "/");
+        strcat(cmdPath, cmd);
+
+        // check if the command is available
+        if (access(cmdPath, X_OK) != 0) {
+            free(cmdPath);
+            cmdPath = NULL;
+            continue;
+        }
+
+        return cmdPath;
+    }
+
+    return cmdPath;
+}
+
+void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) { 
     // TODO: run the process
     // see: https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-api.pdf
+
+    // step 1: check if command is in path with `access`
+    // step 2: fork and exec the command
+
+    char *cmdPath = getCommandPath(cmdArgs[0]);
+    if (cmdPath == NULL) {
+        printError();
+        return;
+    }
+
+    // printf("cmdPath: %s\n", cmdPath);
+
+    int rc = fork();
+    if (rc < 0) {
+        // fork failed, no child process is created
+        printError();
+    } else if (rc == 0) {
+        // child: redirect standard output to a file
+        // close(STDOUT_FILENO);
+        // open("./p4.output", O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
+
+        char *execArgs[cmdArgsSize + 1];
+        execArgs[0] = cmdPath;
+        for (size_t i = 1; i < cmdArgsSize; i++) {
+            execArgs[i] = cmdArgs[i];
+        }
+        execArgs[cmdArgsSize] = NULL;
+        execv(execArgs[0], execArgs);
+    } else {
+        // parent goes down this path (main)
+        if (waitpid(rc, NULL, 0) == -1) {
+            printError();
+        }
+    }
+
+    free(cmdPath);
 }
 
 int tryRunningBuiltIns(char *cmdArgs[], size_t cmdArgsSize) {
@@ -59,7 +129,11 @@ int tryRunningBuiltIns(char *cmdArgs[], size_t cmdArgsSize) {
         }
 
         for (size_t i = 1; i < cmdArgsSize; i++) {
-            atomic_path[i - 1] = cmdArgs[i];
+            // TODO: test if it works
+            path[i - 1] = cmdArgs[i];
+
+            // print path 
+            // printf("path[%ld]: %s\n", i - 1, path[i - 1]);
         }
 
         return 1;
@@ -71,9 +145,8 @@ int tryRunningBuiltIns(char *cmdArgs[], size_t cmdArgsSize) {
 void interpretLine(char *line) {
     size_t cmdArgsSize = 0;
     char *cmdArgs[MAX_CLI_ARGS];
-    char *currentToken;
 
-    for (;(currentToken = strsep(&line, " ")) != NULL; cmdArgsSize++) {
+    for (char *currentToken;(currentToken = strsep(&line, " ")) != NULL; cmdArgsSize++) {
         if (cmdArgsSize >= MAX_CLI_ARGS) {
             printError(); // too many arguments
             return;
@@ -83,9 +156,11 @@ void interpretLine(char *line) {
     }
 
     if (cmdArgsSize == 0) {
-        return 0;
+        printError(); // not enough arguments
+        return;
     }
 
+    // TODO: redirection and parallel commands
     if (tryRunningBuiltIns(cmdArgs, cmdArgsSize) == NOT_A_BUILTIN) {
         tryRunningCommand(cmdArgs, cmdArgsSize);
     }
