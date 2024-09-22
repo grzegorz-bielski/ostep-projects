@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 // #include <stdint.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 // https://github.com/remzi-arpacidusseau/ostep-projects/tree/master/processes-shell
 
@@ -64,7 +65,7 @@ char *getCommandPath(char *cmd) {
     return cmdPath;
 }
 
-void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) { 
+void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize, char* redirectTo) { 
     // TODO: run the process
     // see: https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-api.pdf
 
@@ -88,8 +89,17 @@ void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) {
     } else if (rc == 0) {
         // child: execute the command
 
-        // close(STDOUT_FILENO);
-        // open("./p4.output", O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
+        if (redirectTo != NULL) {
+            // close stdout
+            close(STDOUT_FILENO);
+
+            // `open` will use first available file descriptor, starting from 0
+            // STDOUT_FILENO (1) will be the first available file descriptor
+            // so all output that writes to the `STDOUT_FILENO` will go to the `redirectTo` file
+            open(redirectTo, O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
+
+            // TODO: redirect stderr too
+        }
 
         char *execArgs[cmdArgsSize + 1];
         // command name without path, specifying path is not supported
@@ -115,6 +125,12 @@ void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) {
 
 int tryRunningBuiltIns(char *cmdArgs[], size_t cmdArgsSize) {
     if (strcmp(cmdArgs[0], "exit") == 0) {
+         if (cmdArgsSize != 1) {
+            // too many arguments for exit
+            printError();
+            return 1;
+        }
+
         atomic_exitting = true;
         return 1;
     }
@@ -155,11 +171,68 @@ int tryRunningBuiltIns(char *cmdArgs[], size_t cmdArgsSize) {
     return NOT_A_BUILTIN; // not a built-in
 }
 
+
+void removeNewline(char *str) {
+    // find the position of the \n
+    size_t len = strcspn(str, "\n");
+    if (str[len] == '\n') {
+        str[len] = '\0';
+    }
+}
+
+void trimWhitespace(char *str) {
+    char *start = str;
+    char *end;
+
+    // Trim leading space
+    while (isspace((unsigned char)*start)) {
+        start++;
+    }
+
+    // Is it all whitespace?
+    if (*start == 0) {
+        *str = 0;
+        return;
+    }
+
+    // Trim trailing space
+    end = start + strlen(start) - 1; // points to the last character before null terminator
+    while (end > start && isspace((unsigned char)*end)) {
+        end--; // move backwards from the null terminator
+    }
+
+    // Write new null terminator
+    *(end + 1) = '\0';
+
+    // Shift the trimmed string to the beginning
+    memmove(str, start, end - start + 2); // `end - start + 1` is the length of the string, +1 for the null terminator
+}
+
 void interpretLine(char *line) {
     size_t cmdArgsSize = 0;
     char *cmdArgs[MAX_CLI_ARGS];
 
-    for (char *currentToken;(currentToken = strsep(&line, " ")) != NULL; cmdArgsSize++) {
+    // TODO: tokenize the line, handle & and >
+
+    removeNewline(line); // TODO: remove it?
+
+    // handle redirection
+    // only following format is supported: `cmd args > file` i.e `lhs > rhs`
+    char* lhs = strsep(&line, ">");
+    char* rhs = line;
+    if (rhs != NULL) {
+        rhs = strdup(rhs);
+        trimWhitespace(rhs);
+    }
+    trimWhitespace(lhs);
+
+    // printf("lhs: %s\n", lhs);
+    // printf("rhs: %s\n", rhs);
+
+    // TODO: build struct for cmd exec input (?)
+    // TODO: add another, outer loop for parallel commands
+
+    for (char *currentToken;(currentToken = strsep(&lhs, " ")) != NULL; cmdArgsSize++) {
         if (cmdArgsSize >= MAX_CLI_ARGS) {
             printError(); // too many arguments
             return;
@@ -173,17 +246,8 @@ void interpretLine(char *line) {
         return;
     }
 
-    // TODO: redirection and parallel commands
     if (tryRunningBuiltIns(cmdArgs, cmdArgsSize) == NOT_A_BUILTIN) {
-        tryRunningCommand(cmdArgs, cmdArgsSize);
-    }
-}
-
-void removeNewline(char *str) {
-    // find the position of the \n
-    size_t len = strcspn(str, "\n");
-    if (str[len] == '\n') {
-        str[len] = '\0';
+        tryRunningCommand(cmdArgs, cmdArgsSize, rhs);
     }
 }
 
@@ -201,7 +265,6 @@ void runShellFrom(FILE *stream, bool printPrompt) {
             break;
         }
 
-        removeNewline(line);
         interpretLine(line);
     }
 
