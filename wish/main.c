@@ -20,11 +20,14 @@
 #endif
 
 // globals, atomic just in case
-_Atomic int atomic_exitting = 0;
+_Atomic bool atomic_exitting = false;
 
-// TODO: `atomic_path` cannot be atomic, use locks to update both
+// TODO: `path` cannot be atomic, use locks to update both `path` and `pathSize`
 size_t pathSize = 2;
-char *path[MAX_PATH_SIZE] = { "/bin", "/usr/bin" };
+char *path[MAX_PATH_SIZE] = { 
+    "/bin", 
+    // "/usr/bin" 
+    };
 
 void printError() {
     char error_message[30] = "An error has occurred\n";
@@ -64,8 +67,12 @@ void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) {
     // TODO: run the process
     // see: https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-api.pdf
 
-    // step 1: check if command is in path with `access`
-    // step 2: fork and exec the command
+    // step 1: check if command is in path with `access` - done
+    // step 2: fork and exec the command - done
+    // step 2.5: check built-in commands - done
+    // step 3: redirection (TODO)
+    // step 4: parallel commands (TODO)
+    // step 5: batch file (TODO)
 
     char *cmdPath = getCommandPath(cmdArgs[0]);
     if (cmdPath == NULL) {
@@ -73,14 +80,13 @@ void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) {
         return;
     }
 
-    // printf("cmdPath: %s\n", cmdPath);
-
     int rc = fork();
     if (rc < 0) {
         // fork failed, no child process is created
         printError();
     } else if (rc == 0) {
-        // child: redirect standard output to a file
+        // child: execute the command
+
         // close(STDOUT_FILENO);
         // open("./p4.output", O_CREAT|O_WRONLY|O_TRUNC, S_IRWXU);
 
@@ -90,9 +96,10 @@ void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) {
             execArgs[i] = cmdArgs[i];
         }
         execArgs[cmdArgsSize] = NULL;
+
         execv(execArgs[0], execArgs);
     } else {
-        // parent goes down this path (main)
+        // parent: wait for the child to finish
         if (waitpid(rc, NULL, 0) == -1) {
             printError();
         }
@@ -103,7 +110,7 @@ void tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize) {
 
 int tryRunningBuiltIns(char *cmdArgs[], size_t cmdArgsSize) {
     if (strcmp(cmdArgs[0], "exit") == 0) {
-        atomic_exitting = 1;
+        atomic_exitting = true;
         return 1;
     }
     
@@ -128,13 +135,14 @@ int tryRunningBuiltIns(char *cmdArgs[], size_t cmdArgsSize) {
             return 1;
         }
 
-        for (size_t i = 1; i < cmdArgsSize; i++) {
-            // TODO: test if it works
-            path[i - 1] = cmdArgs[i];
+        // clear path
+        pathSize = 0;
+        memset(path, 0, sizeof(path));
 
-            // print path 
-            // printf("path[%ld]: %s\n", i - 1, path[i - 1]);
+        for (size_t i = 1; i < cmdArgsSize; i++) {
+            path[i - 1] = cmdArgs[i];
         }
+        pathSize = cmdArgsSize - 1;
 
         return 1;
     }
