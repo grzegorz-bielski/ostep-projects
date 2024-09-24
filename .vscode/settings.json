@@ -27,6 +27,7 @@
         "system_error": "c",
         "typeinfo": "c",
         "inet.h": "c",
-        "unistd.h": "c"
+        "unistd.h": "c",
+        "limits.h": "c"
     }
 }
