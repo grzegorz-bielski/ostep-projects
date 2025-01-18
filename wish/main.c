@@ -78,16 +78,6 @@ char *getCommandPath(char *cmd) {
 
 // returns `CMD_RUN_FAILURE` or child pid
 int tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize, char* redirectTo) { 
-    // TODO: run the process
-    // see: https://pages.cs.wisc.edu/~remzi/OSTEP/cpu-api.pdf
-
-    // step 1: check if command is in path with `access` - done
-    // step 2: fork and exec the command - done
-    // step 2.5: check built-in commands - done
-    // step 3: batch file - done
-    // step 4: redirection - done
-    // step 5: parallel commands (TODO)
-
     char *cmdPath = getCommandPath(cmdArgs[0]);
     if (cmdPath == NULL) {
         printError();
@@ -137,10 +127,8 @@ int tryRunningCommand(char *cmdArgs[], size_t cmdArgsSize, char* redirectTo) {
         return CMD_RUN;
 
     } else {
-        // parent: wait for the child to finish
-        // if (waitpid(rc, NULL, 0) == -1) {
-        //     printError();
-        // }
+        // parent: wait for the child to finish in the caller
+        
         free(cmdPath);
 
         return rc; // return the child pid
