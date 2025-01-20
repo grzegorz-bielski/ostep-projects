@@ -2,6 +2,8 @@
 
 Some of the solutions to projects based on the [OSTEP](https://pages.cs.wisc.edu/~remzi/OSTEP/) course
 
+[Book review](https://pureframes.eu/blog/ostep-review)
+
 ## Finished projects
 
 - [wcat](./wcat/) - a cat like cli tool
